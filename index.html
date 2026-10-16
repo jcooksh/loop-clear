@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Loop Clear</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --cell-bg: #172033;
+      --cell-border: #334155;
+      --accent: #38bdf8;
+      --accent-glow: rgba(56, 189, 248, 0.4);
+      --text: #f8fafc;
+      --text-dim: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      touch-action: manipulation;
+      overflow-x: hidden;
+      padding: 16px 8px env(safe-area-inset-bottom, 16px) 8px;
+    }
+
+    .app-container {
+      width: 100%;
+      max-width: 380px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    header {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 8px;
+    }
+
+    .logo-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .logo-group h1 {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #38bdf8, #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .logo-group .subtitle {
+      font-size: 11px;
+      color: var(--text-dim);
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .score-cards {
+      display: flex;
+      gap: 8px;
+    }
+
+    .score-badge {
+      background: var(--card-bg);
+      border: 1px solid var(--cell-border);
+      border-radius: 10px;
+      padding: 6px 12px;
+      text-align: center;
+      min-width: 65px;
+    }
+
+    .score-badge .label {
+      font-size: 10px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    .score-badge .val {
+      font-size: 18px;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .board-container {
+      position: relative;
+      background: var(--card-bg);
+      padding: 10px;
+      border-radius: 16px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--cell-border);
+      width: 100%;
+      max-width: 360px;
+      aspect-ratio: 1;
+    }
+
+    .board-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      grid-template-rows: repeat(6, 1fr);
+      gap: 6px;
+      width: 100%;
+      height: 100%;
+    }
+
+    .cell {
+      background: var(--cell-bg);
+      border-radius: 8px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      transition: background 0.15s ease, transform 0.1s ease;
+    }
+
+    .cell.ghost-valid {
+      background: rgba(56, 189, 248, 0.25);
+      border: 1px solid #38bdf8;
+    }
+
+    .cell.ghost-invalid {
+      background: rgba(244, 63, 94, 0.2);
+      border: 1px solid #f43f5e;
+    }
+
+    .cell.popping {
+      animation: popAnimation 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+      z-index: 10;
+    }
+
+    @keyframes popAnimation {
+      0% {
+        transform: scale(1);
+        filter: brightness(1);
+      }
+      50% {
+        transform: scale(1.18);
+        filter: brightness(2) drop-shadow(0 0 12px #38bdf8);
+      }
+      100% {
+        transform: scale(0);
+        opacity: 0;
+      }
+    }
+
+    svg.pipe-svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      pointer-events: none;
+    }
+
+    .instruction-bar {
+      font-size: 13px;
+      color: var(--text-dim);
+      font-weight: 500;
+      min-height: 20px;
+      text-align: center;
+    }
+
+    .instruction-bar span.highlight {
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    /* Tray */
+    .tray-container {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      width: 100%;
+      max-width: 360px;
+      height: 104px;
+    }
+
+    .tray-slot {
+      background: var(--card-bg);
+      border: 2px solid var(--cell-border);
+      border-radius: 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      position: relative;
+      transition: transform 0.15s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+      padding: 6px;
+    }
+
+    .tray-slot:active {
+      transform: scale(0.96);
+    }
+
+    .tray-slot.selected {
+      border-color: var(--accent);
+      box-shadow: 0 0 16px var(--accent-glow);
+      transform: translateY(-3px);
+      background: #1b283d;
+    }
+
+    .tray-slot.selected::after {
+      content: '↻ TAP TO ROTATE';
+      position: absolute;
+      bottom: 4px;
+      font-size: 8px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      color: var(--accent);
+    }
+
+    .tray-piece-preview {
+      display: grid;
+      gap: 3px;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .mini-tile {
+      width: 32px;
+      height: 32px;
+      background: var(--cell-bg);
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    /* Modal Overlay */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(6px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+      padding: 16px;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-card {
+      background: var(--card-bg);
+      border: 1px solid var(--cell-border);
+      border-radius: 20px;
+      padding: 28px 24px;
+      text-align: center;
+      max-width: 320px;
+      width: 100%;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+      transform: scale(0.9);
+      transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .modal-overlay.active .modal-card {
+      transform: scale(1);
+    }
+
+    .modal-card h2 {
+      font-size: 26px;
+      font-weight: 800;
+      color: #f43f5e;
+      margin-bottom: 8px;
+    }
+
+    .modal-score-box {
+      margin: 20px 0;
+      background: var(--cell-bg);
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      justify-content: space-around;
+    }
+
+    .btn-restart {
+      background: linear-gradient(135deg, #38bdf8, #2563eb);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      padding: 12px 28px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      width: 100%;
+      box-shadow: 0 4px 14px rgba(56, 189, 248, 0.4);
+      transition: transform 0.1s ease, filter 0.1s ease;
+    }
+
+    .btn-restart:active {
+      transform: scale(0.97);
+      filter: brightness(0.9);
+    }
+
+    .btn-reset-header {
+      background: transparent;
+      border: 1px solid var(--cell-border);
+      color: var(--text-dim);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 5px 9px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    .btn-reset-header:active {
+      color: #fff;
+      border-color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <header>
+      <div class="logo-group">
+        <h1>Loop Clear</h1>
+        <span class="subtitle">Pipe Puzzle</span>
+      </div>
+      <div class="score-cards">
+        <div class="score-badge">
+          <div class="label">Score</div>
+          <div id="currentScore" class="val">0</div>
+        </div>
+        <div class="score-badge">
+          <div class="label">Best</div>
+          <div id="bestScore" class="val">0</div>
+        </div>
+        <button id="btnHeaderRestart" class="btn-reset-header" title="Restart Game">↺</button>
+      </div>
+    </header>
+
+    <div class="instruction-bar" id="instructionBar">
+      Tap a piece in the tray to place or rotate
+    </div>
+
+    <div class="board-container">
+      <div class="board-grid" id="boardGrid"></div>
+    </div>
+
+    <div class="tray-container" id="trayContainer"></div>
+  </div>
+
+  <!-- Game Over Modal -->
+  <div class="modal-overlay" id="gameOverModal">
+    <div class="modal-card">
+      <h2>Game Over</h2>
+      <p style="color: var(--text-dim); font-size: 14px;">No remaining piece fits the board!</p>
+      <div class="modal-score-box">
+        <div>
+          <div class="label" style="font-size: 11px; color: var(--text-dim); text-transform: uppercase;">Score</div>
+          <div id="modalScore" style="font-size: 24px; font-weight: 800; color: #fff;">0</div>
+        </div>
+        <div>
+          <div class="label" style="font-size: 11px; color: var(--text-dim); text-transform: uppercase;">Best</div>
+          <div id="modalBest" style="font-size: 24px; font-weight: 800; color: #38bdf8;">0</div>
+        </div>
+      </div>
+      <button class="btn-restart" id="btnModalRestart">Play Again</button>
+    </div>
+  </div>
+
+  <script src="logic.js"></script>
+  <script>
+    (function () {
+      const {
+        BOARD_SIZE,
+        createBoard,
+        canPlace,
+        placePiece,
+        rotatePiece,
+        checkClears,
+        isGameOver,
+        generateTray
+      } = window.LoopClearLogic;
+
+      // Audio synthesizer
+      let audioCtx = null;
+      function initAudio() {
+        if (!audioCtx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) {
+            audioCtx = new AudioContext();
+          }
+        }
+        if (audioCtx && audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+      }
+
+      function playSound(type) {
+        if (!audioCtx) return;
+        try {
+          const now = audioCtx.currentTime;
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+
+          if (type === 'tap') {
+            osc.frequency.setValueAtTime(440, now);
+            gain.gain.setValueAtTime(0.08, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+            osc.start(now);
+            osc.stop(now + 0.05);
+          } else if (type === 'rotate') {
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(520, now);
+            osc.frequency.exponentialRampToValueAtTime(780, now + 0.08);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+            osc.start(now);
+            osc.stop(now + 0.08);
+          } else if (type === 'place') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(180, now);
+            osc.frequency.exponentialRampToValueAtTime(60, now + 0.12);
+            gain.gain.setValueAtTime(0.18, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+            osc.start(now);
+            osc.stop(now + 0.12);
+          } else if (type === 'clear') {
+            const chords = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+            chords.forEach((freq, idx) => {
+              const o = audioCtx.createOscillator();
+              const g = audioCtx.createGain();
+              o.type = 'sine';
+              o.connect(g);
+              g.connect(audioCtx.destination);
+              o.frequency.setValueAtTime(freq, now + idx * 0.06);
+              g.gain.setValueAtTime(0.12, now + idx * 0.06);
+              g.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.06 + 0.25);
+              o.start(now + idx * 0.06);
+              o.stop(now + idx * 0.06 + 0.25);
+            });
+          } else if (type === 'gameover') {
+            const notes = [300, 260, 220, 180];
+            notes.forEach((freq, idx) => {
+              const o = audioCtx.createOscillator();
+              const g = audioCtx.createGain();
+              o.type = 'sawtooth';
+              o.connect(g);
+              g.connect(audioCtx.destination);
+              o.frequency.setValueAtTime(freq, now + idx * 0.12);
+              g.gain.setValueAtTime(0.09, now + idx * 0.12);
+              g.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.12 + 0.2);
+              o.start(now + idx * 0.12);
+              o.stop(now + idx * 0.12 + 0.2);
+            });
+          }
+        } catch (e) {
+          // Ignore audio errors
+        }
+      }
+
+      // Game State
+      let board = createBoard(BOARD_SIZE);
+      let tray = [];
+      let selectedTrayIndex = null;
+      let score = 0;
+      let bestScore = parseInt(localStorage.getItem('loopclear_best_score') || '0', 10);
+      let isAnimating = false;
+
+      // DOM Elements
+      const boardGridEl = document.getElementById('boardGrid');
+      const trayContainerEl = document.getElementById('trayContainer');
+      const currentScoreEl = document.getElementById('currentScore');
+      const bestScoreEl = document.getElementById('bestScore');
+      const instructionBarEl = document.getElementById('instructionBar');
+      const gameOverModalEl = document.getElementById('gameOverModal');
+      const modalScoreEl = document.getElementById('modalScore');
+      const modalBestEl = document.getElementById('modalBest');
+      const btnModalRestart = document.getElementById('btnModalRestart');
+      const btnHeaderRestart = document.getElementById('btnHeaderRestart');
+
+      function updateScoreDisplay() {
+        currentScoreEl.textContent = score;
+        bestScoreEl.textContent = bestScore;
+      }
+
+      function saveBestScore() {
+        if (score > bestScore) {
+          bestScore = score;
+          localStorage.setItem('loopclear_best_score', bestScore.toString());
+          updateScoreDisplay();
+        }
+      }
+
+      // Render SVG Pipe Graphic
+      function createPipeSvg(tile, ghostColor = null) {
+        const color = ghostColor || tile.color || '#38bdf8';
+        const strokeWidth = 24;
+        const openings = tile.openings || [];
+
+        // Check if straight
+        const isStraightNS = openings.length === 2 && openings.includes('N') && openings.includes('S');
+        const isStraightEW = openings.length === 2 && openings.includes('E') && openings.includes('W');
+
+        let pathData = '';
+        if (isStraightNS) {
+          pathData = 'M 50 0 L 50 100';
+        } else if (isStraightEW) {
+          pathData = 'M 0 50 L 100 50';
+        } else if (openings.length === 2) {
+          // Corner curves
+          const hasN = openings.includes('N');
+          const hasS = openings.includes('S');
+          const hasE = openings.includes('E');
+          const hasW = openings.includes('W');
+
+          if (hasN && hasE) pathData = 'M 50 0 Q 50 50 100 50';
+          else if (hasE && hasS) pathData = 'M 100 50 Q 50 50 50 100';
+          else if (hasS && hasW) pathData = 'M 50 100 Q 50 50 0 50';
+          else if (hasW && hasN) pathData = 'M 0 50 Q 50 50 50 0';
+        } else {
+          // General case (e.g. junction or single opening)
+          openings.forEach(d => {
+            if (d === 'N') pathData += 'M 50 0 L 50 50 ';
+            if (d === 'S') pathData += 'M 50 100 L 50 50 ';
+            if (d === 'E') pathData += 'M 100 50 L 50 50 ';
+            if (d === 'W') pathData += 'M 0 50 L 50 50 ';
+          });
+        }
+
+        // Connecting flange circles at active openings
+        let flanges = '';
+        openings.forEach(d => {
+          let cx = 50, cy = 50;
+          if (d === 'N') { cx = 50; cy = 3; }
+          if (d === 'S') { cx = 50; cy = 97; }
+          if (d === 'E') { cx = 97; cy = 50; }
+          if (d === 'W') { cx = 3; cy = 50; }
+          flanges += `<circle cx="${cx}" cy="${cy}" r="11" fill="${color}" opacity="0.9" />`;
+        });
+
+        return `
+          <svg class="pipe-svg" viewBox="0 0 100 100">
+            <!-- Shadow layer -->
+            <path d="${pathData}" fill="none" stroke="#090d16" stroke-width="${strokeWidth + 4}" stroke-linecap="butt" stroke-linejoin="round" />
+            <!-- Main pipe body -->
+            <path d="${pathData}" fill="none" stroke="${color}" stroke-width="${strokeWidth}" stroke-linecap="butt" stroke-linejoin="round" />
+            <!-- Inner highlight -->
+            <path d="${pathData}" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="${strokeWidth * 0.35}" stroke-linecap="round" stroke-linejoin="round" />
+            ${flanges}
+          </svg>
+        `;
+      }
+
+      // Initialize Board DOM
+      function initBoardDom() {
+        boardGridEl.innerHTML = '';
+        for (let r = 0; r < BOARD_SIZE; r++) {
+          for (let c = 0; c < BOARD_SIZE; c++) {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            cell.dataset.r = r;
+            cell.dataset.c = c;
+
+            cell.addEventListener('pointerenter', () => handleCellHover(r, c));
+            cell.addEventListener('pointerdown', (e) => {
+              e.preventDefault();
+              initAudio();
+              handleCellClick(r, c);
+            });
+
+            boardGridEl.appendChild(cell);
+          }
+        }
+        boardGridEl.addEventListener('pointerleave', clearGhost);
+      }
+
+      function getCellEl(r, c) {
+        return boardGridEl.querySelector(`.cell[data-r="${r}"][data-c="${c}"]`);
+      }
+
+      function renderBoard() {
+        for (let r = 0; r < BOARD_SIZE; r++) {
+          for (let c = 0; c < BOARD_SIZE; c++) {
+            const cellEl = getCellEl(r, c);
+            const tile = board[r][c];
+            if (tile) {
+              cellEl.innerHTML = createPipeSvg(tile);
+            } else {
+              cellEl.innerHTML = '';
+            }
+          }
+        }
+      }
+
+      function renderTray() {
+        trayContainerEl.innerHTML = '';
+        tray.forEach((piece, index) => {
+          const slot = document.createElement('div');
+          slot.className = 'tray-slot' + (selectedTrayIndex === index ? ' selected' : '');
+
+          if (!piece) {
+            slot.style.opacity = '0.2';
+            slot.style.cursor = 'default';
+          } else {
+            // Find bounds of piece tiles to center preview
+            const rs = piece.tiles.map(t => t.r);
+            const cs = piece.tiles.map(t => t.c);
+            const minR = Math.min(...rs);
+            const maxR = Math.max(...rs);
+            const minC = Math.min(...cs);
+            const maxC = Math.max(...cs);
+            const rows = maxR - minR + 1;
+            const cols = maxC - minC + 1;
+
+            const preview = document.createElement('div');
+            preview.className = 'tray-piece-preview';
+            preview.style.gridTemplateRows = `repeat(${rows}, 32px)`;
+            preview.style.gridTemplateColumns = `repeat(${cols}, 32px)`;
+
+            for (let r = minR; r <= maxR; r++) {
+              for (let c = minC; c <= maxC; c++) {
+                const found = piece.tiles.find(t => t.r === r && t.c === c);
+                const mini = document.createElement('div');
+                mini.className = 'mini-tile';
+                if (found) {
+                  mini.innerHTML = createPipeSvg(found.tile);
+                } else {
+                  mini.style.visibility = 'hidden';
+                }
+                preview.appendChild(mini);
+              }
+            }
+            slot.appendChild(preview);
+
+            slot.addEventListener('pointerdown', (e) => {
+              e.preventDefault();
+              initAudio();
+              handleTrayClick(index);
+            });
+          }
+
+          trayContainerEl.appendChild(slot);
+        });
+      }
+
+      function handleTrayClick(index) {
+        if (isAnimating) return;
+        const piece = tray[index];
+        if (!piece) return;
+
+        if (selectedTrayIndex === index) {
+          // Rotate current piece 90 degrees
+          tray[index] = rotatePiece(piece);
+          playSound('rotate');
+          renderTray();
+          instructionBarEl.innerHTML = `Piece rotated! Tap empty cell to place`;
+        } else {
+          // Select piece
+          selectedTrayIndex = index;
+          playSound('tap');
+          renderTray();
+          instructionBarEl.innerHTML = `<span class="highlight">Piece selected</span>. Tap again to rotate, or tap board to place.`;
+        }
+      }
+
+      function clearGhost() {
+        const cells = boardGridEl.querySelectorAll('.cell');
+        cells.forEach(c => {
+          c.classList.remove('ghost-valid', 'ghost-invalid');
+        });
+      }
+
+      function handleCellHover(startR, startC) {
+        if (isAnimating || selectedTrayIndex === null) return;
+        const piece = tray[selectedTrayIndex];
+        if (!piece) return;
+
+        clearGhost();
+        const valid = canPlace(board, piece, startR, startC);
+
+        for (const t of piece.tiles) {
+          const r = startR + t.r;
+          const c = startC + t.c;
+          if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE) {
+            const cellEl = getCellEl(r, c);
+            if (cellEl) {
+              cellEl.classList.add(valid ? 'ghost-valid' : 'ghost-invalid');
+            }
+          }
+        }
+      }
+
+      async function handleCellClick(startR, startC) {
+        if (isAnimating) return;
+        if (selectedTrayIndex === null) {
+          // Tap on board without piece selected
+          instructionBarEl.innerHTML = `Select a piece from the tray below first!`;
+          return;
+        }
+
+        const piece = tray[selectedTrayIndex];
+        if (!piece) return;
+
+        if (!canPlace(board, piece, startR, startC)) {
+          // Invalid placement
+          playSound('tap');
+          const cellEl = getCellEl(startR, startC);
+          if (cellEl) {
+            cellEl.classList.add('ghost-invalid');
+            setTimeout(() => cellEl.classList.remove('ghost-invalid'), 200);
+          }
+          return;
+        }
+
+        // Place piece
+        placePiece(board, piece, startR, startC);
+        playSound('place');
+        clearGhost();
+
+        // Remove placed piece from tray
+        tray[selectedTrayIndex] = null;
+        selectedTrayIndex = null;
+        renderBoard();
+        renderTray();
+
+        // Check loops / clears
+        const clearResult = checkClears(board);
+
+        if (clearResult.numLoops > 0) {
+          isAnimating = true;
+          playSound('clear');
+
+          // Highlight and animate popping cells
+          clearResult.clearedCells.forEach(cell => {
+            const cellEl = getCellEl(cell.r, cell.c);
+            if (cellEl) cellEl.classList.add('popping');
+          });
+
+          score += clearResult.points;
+          saveBestScore();
+          updateScoreDisplay();
+
+          const loopText = clearResult.numLoops === 1 ? '1 Loop' : `${clearResult.numLoops} Loops (${clearResult.numLoops}x Combo!)`;
+          instructionBarEl.innerHTML = `<span class="highlight">Cleared ${loopText}! +${clearResult.points} pts</span>`;
+
+          await new Promise(r => setTimeout(r, 400));
+          clearResult.clearedCells.forEach(cell => {
+            const cellEl = getCellEl(cell.r, cell.c);
+            if (cellEl) cellEl.classList.remove('popping');
+          });
+          renderBoard();
+          isAnimating = false;
+        } else {
+          instructionBarEl.textContent = 'Pipe placed. Make closed loops to score!';
+        }
+
+        // Refill tray if all 3 pieces used
+        if (tray.every(p => p === null)) {
+          tray = generateTray(3);
+          renderTray();
+        }
+
+        // Check Game Over
+        const remainingPieces = tray.filter(p => p !== null);
+        if (isGameOver(board, remainingPieces)) {
+          playSound('gameover');
+          modalScoreEl.textContent = score;
+          modalBestEl.textContent = bestScore;
+          gameOverModalEl.classList.add('active');
+        }
+      }
+
+      function startNewGame() {
+        board = createBoard(BOARD_SIZE);
+        tray = generateTray(3);
+        selectedTrayIndex = null;
+        score = 0;
+        updateScoreDisplay();
+        gameOverModalEl.classList.remove('active');
+        renderBoard();
+        renderTray();
+        instructionBarEl.textContent = 'Tap a piece in the tray to place or rotate';
+      }
+
+      // Event Listeners
+      btnModalRestart.addEventListener('click', () => {
+        initAudio();
+        startNewGame();
+      });
+
+      btnHeaderRestart.addEventListener('click', () => {
+        initAudio();
+        startNewGame();
+      });
+
+      // Start initial game
+      initBoardDom();
+      updateScoreDisplay();
+      startNewGame();
+    })();
+  </script>
+</body>
+</html>
